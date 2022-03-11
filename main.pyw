@@ -37,7 +37,7 @@ def make_default_config(path: Path) -> Dict:
 
 def load_config(path: Path) -> Dict:
     """
-    Load user's configurations from the config file. Creates config file if none exists.
+    Load user's configuration file. If none found, create a new one with default commands.
     :param path: Path to file
     :return: Dict containing configurations
     """
@@ -58,6 +58,11 @@ def load_config(path: Path) -> Dict:
 
 
 def make_default_commands_file(path: Path) -> Dict:
+    """
+    Overwrite a file to contain default commands.
+    :param path: Path to file
+    :return: Dict containing commands
+    """
     defaults = {
         "commands": "commands.json",
         "config": "config.ini"
@@ -79,7 +84,7 @@ def make_default_commands_file(path: Path) -> Dict:
 
 def load_commands_file(path: Path) -> Dict:
     """
-    Load the commands file. If none found, create a new one with default commands.
+    Load user's commands file. If none found, create a new one with default commands.
     :param path: Path to commands file.
     :return: Dict of string command keys and string file path values.
     """
@@ -124,7 +129,7 @@ def run_command(commands_file_path: Path, command: str) -> CommandStatus:
 
 
 def flash_widget_background(widget: tk.Widget, color: str, duration: int = 200) -> None:
-    """Make a widget's background turn a color for an amount of time."""
+    """Make a widget's background turn a color for a given amount of time."""
     bg_color = widget['bg']
     widget.config(bg=color)
     widget.after(duration, lambda: widget.config(bg=bg_color))
