@@ -192,7 +192,8 @@ def main() -> None:
     entry_box.config(fg=options['foreground_color'],
                      bg=options['background_color'],
                      font=(options['font'], options['text_size']),
-                     width=options['width'])
+                     width=options['width'],
+                     borderwidth=0)
 
     # Make entry box span entire window
     entry_box.pack()
