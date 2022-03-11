@@ -18,11 +18,11 @@ def make_default_config(path: Path) -> Dict:
         'Options': {
             'x': 10,
             'y': 10,
-            'opacity': 0.8,
+            'text_size': 32,
+            'font': 'Courier New',
             'foreground_color': 'white',
             'background_color': 'black',
-            'font': 'Courier New',
-            'text_size': 32,
+            'opacity': 0.8,
         }
     }
 
@@ -172,41 +172,33 @@ def main() -> None:
 
     # Load config
     config_dict = load_config(config_path)
-    x = config_dict['Options']['x']
-    y = config_dict['Options']['y']
-    opacity = config_dict['Options']['opacity']
-    fg = config_dict['Options']['foreground_color']
-    bg = config_dict['Options']['background_color']
-    font = config_dict['Options']['font']
-    text_size = int(config_dict['Options']['text_size'])
+    options = config_dict['Options']
 
     # Create top-level window
     window = tk.Tk()
-
-    # Create text entry box
-    entry_box = tk.Entry(window,
-                         cnf={
-                             'fg': fg,
-                             'bg': bg,
-                             'font': (font, text_size)
-                         })
-
-    # Make entry box span entire window
-    entry_box.grid(row=0, column=0)
-
-    # Add handlers for keyboard and window events
-    window.bind('<Return>', lambda _: handle_return(window, entry_box, commands_path))
-    window.bind('<Escape>', lambda _: close_window(window))
-    window.bind('<FocusOut>', lambda _: close_window(window))
 
     # Remove toolbar from window
     window.overrideredirect(True)
 
     # Place window at user specification
-    window.geometry(f'+{x}+{y}')
+    window.geometry(f'+{options["x"]}+{options["y"]}')
 
     # Add some transparency
-    window.attributes('-alpha', opacity)
+    window.attributes('-alpha', options['opacity'])
+
+    # Create text entry box
+    entry_box = tk.Entry(window)
+    entry_box.config(fg=options['foreground_color'],
+                     bg=options['background_color'],
+                     font=(options['font'], options['text_size']))
+
+    # Make entry box span entire window
+    entry_box.pack()
+
+    # Add handlers for keyboard and window events
+    window.bind('<Return>', lambda _: handle_return(window, entry_box, commands_path))
+    window.bind('<Escape>', lambda _: close_window(window))
+    window.bind('<FocusOut>', lambda _: close_window(window))
 
     # Force window to foreground and give focus to the text entry box
     window.focus_force()
