@@ -18,6 +18,7 @@ def make_default_config(path: Path) -> Dict:
         'Options': {
             'x': 10,
             'y': 10,
+            'width': 30,
             'text_size': 32,
             'font': 'Courier New',
             'foreground_color': 'white',
@@ -190,7 +191,8 @@ def main() -> None:
     entry_box = tk.Entry(window)
     entry_box.config(fg=options['foreground_color'],
                      bg=options['background_color'],
-                     font=(options['font'], options['text_size']))
+                     font=(options['font'], options['text_size']),
+                     width=options['width'])
 
     # Make entry box span entire window
     entry_box.pack()
