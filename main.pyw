@@ -2,13 +2,15 @@ import configparser
 import json
 import os
 import sys
-import tkinter as tk
 from enum import Enum
-from pathlib import Path
 from typing import Dict
 
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QKeyEvent, QFocusEvent
+from PyQt6.QtWidgets import QMainWindow, QWidget, QLineEdit, QApplication
 
-def make_default_config(path: Path) -> Dict:
+
+def make_default_config(path: str) -> Dict:
     """
     Overwrite a file to contain default configurations.
     :param path: Path to file
@@ -18,12 +20,13 @@ def make_default_config(path: Path) -> Dict:
         'Options': {
             'x': 10,
             'y': 10,
-            'width': 30,
+            'width': 800,
+            'height': 64,
             'text_size': 32,
             'font': 'Courier New',
             'foreground_color': 'white',
             'background_color': 'black',
-            'opacity': 0.8,
+            'opacity': 0.75,
         }
     }
 
@@ -36,7 +39,7 @@ def make_default_config(path: Path) -> Dict:
     return defaults
 
 
-def load_config(path: Path) -> Dict:
+def load_config(path: str) -> Dict:
     """
     Load user's configuration file. If none found, create a new one with default commands.
     :param path: Path to file
@@ -58,7 +61,7 @@ def load_config(path: Path) -> Dict:
     return dict(cfp)
 
 
-def make_default_commands_file(path: Path) -> Dict:
+def make_default_commands_file(path: str) -> Dict:
     """
     Overwrite a file to contain default commands.
     :param path: Path to file
@@ -83,7 +86,7 @@ def make_default_commands_file(path: Path) -> Dict:
     return defaults
 
 
-def load_commands_file(path: Path) -> Dict:
+def load_commands_file(path: str) -> Dict:
     """
     Load user's commands file. If none found, create a new one with default commands.
     :param path: Path to commands file.
@@ -105,10 +108,9 @@ class CommandStatus(Enum):
     MISSING_FILE = 2
 
 
-def run_command(commands_file_path: Path, command: str) -> CommandStatus:
+def run_command(command: str) -> CommandStatus:
     """
     Try to run a command.
-    :param commands_file_path: Path to commands file
     :param command: String input
     :return: CommandStatus describing result of attempt to run command
     """
@@ -117,7 +119,7 @@ def run_command(commands_file_path: Path, command: str) -> CommandStatus:
     if command:
         command = command.lower()
 
-        commands = load_commands_file(commands_file_path)
+        commands = load_commands_file('commands.json')
 
         if command in commands:
             try:
@@ -129,86 +131,134 @@ def run_command(commands_file_path: Path, command: str) -> CommandStatus:
             return CommandStatus.INVALID
 
 
-def flash_widget_background(widget: tk.Widget, color: str, duration: int = 200) -> None:
-    """Make a widget's background turn a color for a given amount of time."""
-    bg_color = widget['bg']
-    widget.config(bg=color)
-    widget.after(duration, lambda: widget.config(bg=bg_color))
+class NoCursorQLineEdit(QLineEdit):
+    def __init__(self, parent: QWidget):
+        super().__init__(parent=parent)
+        self.setReadOnly(True)
+
+    def keyPressEvent(self, e: QKeyEvent) -> None:
+        self.setReadOnly(False)
+        super().keyPressEvent(e)
+        self.setReadOnly(True)
+
+    def focusOutEvent(self, e: QFocusEvent) -> None:
+        QApplication.instance().quit()
 
 
-def clear_entry(entry: tk.Entry) -> None:
-    """Clear the contents of the entry widget."""
-    entry.delete(0, len(entry.get()))
+class ProtocommWindow(QMainWindow):
+    def __init__(self, x: int, y: int, width: int, height: int, padding: int, text_size: int, font: str, fg_color: str, bg_color: str,
+                 opacity: float):
+        super().__init__()
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.padding = padding
+        self.text_size = text_size
+        self.font = font
+        self.fg_color = fg_color
+        self.bg_color = bg_color
+        self.opacity = opacity
 
-def handle_return(window: tk.Tk, entry: tk.Entry, commands_file_path: Path) -> None:
-    """Process command and give visual feedback for an error."""
-    command_status = run_command(commands_file_path, entry.get())
+        self.initUI()
 
-    if command_status == CommandStatus.SUCCESS:
-        close_window(window)
+    def initUI(self):
+        self.timer = QTimer(self)
+        self.setGeometry(self.x, self.y, self.width + self.padding * 2, self.height + self.padding * 2)
+        self.setWindowOpacity(self.opacity)
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint  # Hides window's title bar
+            | Qt.WindowType.WindowStaysOnTopHint  # Force window to top
+            | Qt.WindowType.SplashScreen  # Hides window from task bar
+        )
+        self.setWindowTitle('Protocomm')
 
-    elif command_status == CommandStatus.INVALID:
-        clear_entry(entry)
-        flash_widget_background(entry, 'red')
+        self.frame = QWidget(self)
+        self.frame.setGeometry(0, 0, self.width + self.padding * 2, self.height + self.padding * 2)
+        self.frame.setStyleSheet(f'background-color: {self.bg_color}; border-radius: {int(self.height * 0.3)}px;')
 
-    elif command_status == CommandStatus.MISSING_FILE:
-        clear_entry(entry)
-        flash_widget_background(entry, 'orange')
+        self.le = NoCursorQLineEdit(self.frame)
+        self.le.setGeometry(self.padding, self.padding, self.width, self.height)
+        self.le.setFrame(False)
+        self.le.setReadOnly(True)
+        self.le.setStyleSheet(f"""
+            QLineEdit{{
+                background-color: {self.bg_color};
+                color: {self.fg_color};
+                font-family: {self.font};
+                font-size: {self.text_size}pt;
+                border-radius: {int(self.height * 0.2)}px;
+            }}
+        """)
 
+        self.frame.setFocusProxy(self.le)
+        self.setFocusProxy(self.le)
+        self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        self.setFocus()
 
-def close_window(window: tk.Tk) -> None:
-    """
-    Close the window and exit the program.
-    :param window: The window to close
-    :return: None
-    """
-    window.destroy()
-    sys.exit()
+        self.show()
+
+    def flash(self, color: str, duration: int) -> None:
+        current_style = self.frame.styleSheet()
+        self.frame.setStyleSheet(f'background-color: {color}; border-radius: {int(self.height * 0.3)}px;')
+        self.timer.timeout.connect(lambda: self.frame.setStyleSheet(current_style))
+        self.timer.start(duration)
+
+    def clear(self):
+        self.le.setText('')
+
+    def keyPressEvent(self, e: QKeyEvent) -> None:
+        if e.key() == Qt.Key.Key_Escape.value:
+            QApplication.instance().quit()
+        if e.key() == Qt.Key.Key_Return.value:
+            result = run_command(self.le.text())
+            if result == CommandStatus.SUCCESS:
+                QApplication.instance().quit()
+            elif result == CommandStatus.INVALID:
+                self.clear()
+                self.flash('#FF0000', duration=200)
+            elif result == CommandStatus.MISSING_FILE:
+                self.clear()
+                self.flash('#FF8800', duration=200)
 
 
 def main() -> None:
-    config_path = Path('config.ini')
-    commands_path = Path('commands.json')
 
     # Load config
-    config_dict = load_config(config_path)
+    config_dict = load_config('config.ini')
     options = config_dict['Options']
 
-    # Create top-level window
-    window = tk.Tk()
+    # Start app with arguments from command line
+    app = QApplication(sys.argv)
 
-    # Remove toolbar from window
-    window.overrideredirect(True)
+    pcw = ProtocommWindow(
+        x=int(options['x']),
+        y=int(options['y']),
+        width=int(options['width']),
+        height=int(options['height']),
+        padding=int(options['padding']),
+        text_size=int(options['text_size']),
+        font=options['font'],
+        fg_color=options['foreground_color'],
+        bg_color=options['background_color'],
+        opacity=float(options['opacity'])
+    )
 
-    # Place window at user specification
-    window.geometry(f'+{options["x"]}+{options["y"]}')
+    # Enter main loop (and close program if application is ended)
+    sys.exit(app.exec())
 
-    # Add some transparency
-    window.attributes('-alpha', options['opacity'])
-
-    # Create text entry box
-    entry_box = tk.Entry(window)
-    entry_box.config(fg=options['foreground_color'],
-                     bg=options['background_color'],
-                     font=(options['font'], options['text_size']),
-                     width=options['width'],
-                     borderwidth=0)
-
-    # Make entry box span entire window
-    entry_box.pack()
-
-    # Add handlers for keyboard and window events
-    window.bind('<Return>', lambda _: handle_return(window, entry_box, commands_path))
-    window.bind('<Escape>', lambda _: close_window(window))
-    window.bind('<FocusOut>', lambda _: close_window(window))
-
-    # Force window to foreground and give focus to the text entry box
-    window.focus_force()
-    entry_box.focus_set()
-
-    # Start window's update loop
-    window.mainloop()
+    # TODO: Features to implement...
+    #   ✓ text entry
+    #   ✓ remove window title
+    #   ~ forcing focus
+    #   ✓ transparency
+    #   ✓ event handling
+    #      ✓ enter
+    #      ✓ escape
+    #      ✓ focus loss
+    #   ✓ configurations
 
 
 if __name__ == '__main__':
