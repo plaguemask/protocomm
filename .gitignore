@@ -1,0 +1,6 @@
+# Protocomm configuration files
+/*.json
+/*.ini
+
+# PyCharm stuff
+.idea/*
