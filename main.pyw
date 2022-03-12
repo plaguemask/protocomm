@@ -32,6 +32,7 @@ def make_default_config(path: str) -> Dict:
             'y': 10,
             'width': 800,
             'height': 64,
+            'padding': 5,
             'text_size': 32,
             'font': 'Courier New',
             'foreground_color': 'white',
