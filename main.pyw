@@ -48,7 +48,7 @@ def make_default_config(path: str) -> Dict:
     with open(path, 'w', encoding='utf-8') as f:
         cfp.write(f)
 
-    logger.info('Writing successful.')
+    logger.info('Writing default configurations successful.')
 
     return defaults
 
@@ -68,7 +68,7 @@ def load_config(path: str) -> Dict:
 
     logger.info(f'Loading configurations from {path}...')
     cfp.read(path)
-    logger.info('Loading successful.')
+    logger.info('Loading configurations successful.')
 
     # If config file empty or formatted incorrectly, nuke it and replace with defaults
     if 'Options' not in cfp:
@@ -103,7 +103,7 @@ def make_default_commands_file(path: str) -> Dict:
         f.write(commands_str[:-1])  # Avoid trailing comma
         f.write('\n}')
 
-    logger.info('Writing successful.')
+    logger.info('Writing default commands successful.')
 
     return defaults
 
@@ -122,7 +122,7 @@ def load_commands_file(path: str) -> Dict:
     logger.info(f'Loading commands from {path}...')
     with open(path, encoding='utf-8') as f:
         data = f.read().replace('\n', '')
-    logger.info('Loading successful.')
+    logger.info('Loading commands successful.')
 
     d = json.loads(data)
     return d
@@ -249,11 +249,16 @@ class ProtocommWindow(QMainWindow):
         self.show()
 
     def flash(self, color: str, duration: int) -> None:
-        logger.info(f'Flashing {color} for {duration}...')
+        logger.info(f'Flashing {color} for {duration}ms...')
 
         current_style = self.frame.styleSheet()
         self.frame.setStyleSheet(f'background-color: {color}; border-radius: {int(self.height * 0.3)}px;')
-        self.timer.timeout.connect(lambda: self.frame.setStyleSheet(current_style))
+
+        def timeout(obj, style):
+            logger.debug('Duration has ended. Resetting style...')
+            obj.frame.setStyleSheet(style)
+            obj.timer.timeout.disconnect()
+        self.timer.timeout.connect(lambda: timeout(self, current_style))
 
         logger.debug(f'Starting timer...')
         self.timer.start(duration)
@@ -263,7 +268,7 @@ class ProtocommWindow(QMainWindow):
         self.le.setText('')
 
     def keyPressEvent(self, e: QKeyEvent) -> None:
-        logger.debug(f'Key event: {e.key()}')
+        logger.debug(f'Key event: {e.text()}')
 
         if e.key() == Qt.Key.Key_Escape.value:
             exit_app(self)
