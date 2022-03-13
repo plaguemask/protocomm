@@ -105,32 +105,42 @@ def run_command(command: str) -> CommandStatus:
 
 
 class NoCursorQLineEdit(QLineEdit):
+
+    """A version of QLineEdit that hides the blinking text cursor."""
+
     def __init__(self, parent: QWidget):
         super().__init__(parent=parent)
         self.setReadOnly(True)
 
     def keyPressEvent(self, e: QKeyEvent) -> None:
         self.setReadOnly(False)
+
         super().keyPressEvent(e)
+        logger.debug(f'{self.__class__.__name__}: keyPressEvent: {Qt.Key(e.key()).name}')
+
         self.setReadOnly(True)
 
     def focusOutEvent(self, e: QFocusEvent) -> None:
-        logger.debug(f'{self.__class__}: FocusOut event')
+        logger.debug(f'{self.__class__.__name__}: FocusOut event')
         exit_app()
 
 
 def exit_app():
+    """Quits QApplication instance."""
     logger.info('Closing app')
     QApplication.instance().quit()
 
 
 @dataclass
 class ProtocommWindowConfig:
+
+    """Class representation of available Protocomm configurations."""
+
     x: int = 10
     y: int = 10
-    width: int = 800
-    height: int = 64
-    padding: int = 5
+    width: int = 600
+    height: int = 42
+    padding: int = 8
     text_size: int = 32
     font: str = 'Courier New'
     fg_color: str = '#FFFFFF'
@@ -139,15 +149,15 @@ class ProtocommWindowConfig:
 
     def load_from_file(self, path: str) -> None:
         """
-            Load user's configuration file. If none found, create a new one with default commands.
-            :param path: Path to file
-            :return: Dict containing configurations
-            """
+        Load a configuration file. If one does not exist at the path, create a new one with default configurations.
+        :param path: Path to file
+        :return: Dict containing configurations
+        """
         cfp = configparser.ConfigParser()
 
         # If config file doesn't exist, create one with defaults
         if not os.path.exists(path):
-            logger.warning(f'Config file at "{path}" does not exist')
+            logger.warning(f'Config file does not exist at "{path}"')
             self.write_to_file(path)
 
         logger.info(f'Loading configurations from "{path}"')
@@ -174,9 +184,13 @@ class ProtocommWindowConfig:
                     logger.exception(e)
 
     def write_to_file(self, path: str) -> None:
-
+        """
+        Write current configuration to file.
+        :param path: Path to file
+        :return: None
+        """
         # Write defaults to config file
-        logger.info(f'Writing configurations to {path}')
+        logger.info(f'Writing configurations to "{path}"')
 
         cfp = configparser.ConfigParser()
 
@@ -197,6 +211,8 @@ class ProtocommWindow(QMainWindow):
         self.initUI()
 
     def initUI(self):
+        logger.debug('Initializing UI')
+
         self.timer = QTimer(self)
         self.setGeometry(self.config.x,
                          self.config.y,
@@ -267,15 +283,12 @@ class ProtocommWindow(QMainWindow):
         self.le.setText('')
 
     def keyPressEvent(self, e: QKeyEvent) -> None:
-        key_event_desc = {
-            16777220: 'Return',
-            16777216: 'Escape'
-        }
-        logger.info(f'Key event: {key_event_desc[e.key()]}')
+        logger.info(f'{self.__class__.__name__}: keyPressEvent: {Qt.Key(e.key()).name}')
 
         if e.key() == Qt.Key.Key_Escape.value:
             logger.debug(f'Unfocusing self')
             self.clearFocus()
+
         if e.key() == Qt.Key.Key_Return.value:
             result = run_command(self.le.text())
             if result == CommandStatus.SUCCESS:
