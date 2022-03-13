@@ -3,7 +3,6 @@ import json
 import os
 import sys
 from enum import Enum
-from typing import Dict
 import logging
 from dataclasses import dataclass
 
@@ -20,50 +19,10 @@ logging.basicConfig(filename=LOG,
 logger = logging.getLogger(__name__)
 
 
-def make_default_commands_file(path: str) -> Dict:
-    """
-    Overwrite a file to contain default commands.
-    :param path: Path to file
-    :return: Dict containing commands
-    """
-    defaults = {
-        "commands": "commands.json",
-        "config": "config.ini"
-    }
-
-    # Write json fancily to file
-    logger.info(f'Writing default commands to "{path}"')
-
-    with open(path, 'w', encoding='utf-8') as f:
-        f.write('{')
-
-        commands_str = ''
-        for c in defaults:
-            commands_str += f'\n\t"{c}": "{defaults[c]}",'
-
-        f.write(commands_str[:-1])  # Avoid trailing comma
-        f.write('\n}')
-
-    return defaults
-
-
-def load_commands_file(path: str) -> Dict:
-    """
-    Load user's commands file. If none found, create a new one with default commands.
-    :param path: Path to commands file.
-    :return: Dict of string command keys and string file path values.
-    """
-    # If commands file doesn't exist, create one with defaults
-    if not os.path.exists(path):
-        logger.warning(f'Commands file at "{path}" does not exist')
-        return make_default_commands_file(path)
-
-    logger.info(f'Loading commands from {path}.')
-    with open(path, encoding='utf-8') as f:
-        data = f.read().replace('\n', '')
-
-    d = json.loads(data)
-    return d
+DEFAULT_COMMANDS = {
+    "commands": "commands.json",
+    "config": "config.ini"
+}
 
 
 class CommandStatus(Enum):
@@ -72,36 +31,80 @@ class CommandStatus(Enum):
     MISSING_FILE = 2
 
 
-def run_command(command: str) -> CommandStatus:
-    """
-    Try to run a command.
-    :param command: String input
-    :return: CommandStatus describing result of attempt to run command
-    """
+class CommandManager:
 
-    logger.info(f'Command entry: "{command}"')
+    """Class representation of available Protocomm commands."""
 
-    command = command.strip()
-
-    if command:
-        command = command.lower()
-
-        commands = load_commands_file('commands.json')
-
-        if command in commands:
-            logger.info(f'Found command "{command}"')
-            command_path = commands[command]
-            try:
-                logger.info(f'Opening "{command_path}"')
-                os.startfile(command_path)
-                return CommandStatus.SUCCESS
-
-            except FileNotFoundError:
-                logger.error(f'File "{command_path}" not found')
-                return CommandStatus.MISSING_FILE
+    def __init__(self, commands: dict = None):
+        if commands:
+            self.commands = commands
         else:
-            logger.info(f'Command "{command}" not found')
-            return CommandStatus.INVALID
+            self.commands = DEFAULT_COMMANDS
+
+    def run_command(self, command: str) -> CommandStatus:
+        """
+        Try to run a command.
+        :param command: String input
+        :return: CommandStatus describing result of attempt to run command
+        """
+        logger.info(f'Command entry: "{command}"')
+
+        command = command.lower().strip()
+
+        if command:
+            if command in self.commands:
+                logger.info(f'Found command "{command}"')
+                command_path = self.commands[command]
+                try:
+                    logger.info(f'Opening "{command_path}"')
+                    os.startfile(command_path)
+                    return CommandStatus.SUCCESS
+
+                except FileNotFoundError:
+                    logger.error(f'File "{command_path}" not found')
+                    return CommandStatus.MISSING_FILE
+            else:
+                logger.info(f'Command "{command}" not found')
+                return CommandStatus.INVALID
+
+    def load_from_file(self, path: str) -> None:
+        """
+        Load a commands file. If one does not exist at the path, create a new one with default commands.
+        :param path: Path to commands file.
+        :return: Dict of string command keys and string file path values.
+        """
+
+        if not os.path.exists(path):
+            logger.warning(f'Commands file at "{path}" does not exist')
+            self.write_to_file(path)
+
+        logger.info(f'Loading commands from "{path}"')
+        with open(path, encoding='utf-8') as f:
+            data = f.read().replace('\n', '')
+
+        commands_from_file = json.loads(data)
+        for c in commands_from_file:
+            self.commands[c] = commands_from_file[c]
+
+    def write_to_file(self, path: str) -> None:
+        """
+        Write commands to file.
+        :param path: Path to file
+        :return: None
+        """
+
+        # Write json fancily to file
+        logger.info(f'Writing commands to "{path}"')
+
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write('{')
+
+            commands_str = ''
+            for c in self.commands:
+                commands_str += f'\n\t"{c}": "{self.commands[c]}",'
+
+            f.write(commands_str[:-1])  # Avoid trailing comma
+            f.write('\n}')
 
 
 class NoCursorQLineEdit(QLineEdit):
@@ -201,13 +204,16 @@ class ProtocommWindowConfig:
 
 
 class ProtocommWindow(QMainWindow):
-    def __init__(self, config: ProtocommWindowConfig):
+
+    """The main user interface of Protocomm"""
+
+    def __init__(self, config: ProtocommWindowConfig, commands: CommandManager):
         super().__init__()
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         self.config = config
+        self.commands = commands
 
-        logger.debug('Initializing UI')
         self.initUI()
 
     def initUI(self):
@@ -290,7 +296,7 @@ class ProtocommWindow(QMainWindow):
             self.clearFocus()
 
         if e.key() == Qt.Key.Key_Return.value:
-            result = run_command(self.le.text())
+            result = self.commands.run_command(self.le.text())
             if result == CommandStatus.SUCCESS:
                 exit_app()
             elif result == CommandStatus.INVALID:
@@ -308,12 +314,16 @@ def main() -> None:
         config = ProtocommWindowConfig()
         config.load_from_file('config.ini')
 
+        # Load commands
+        commands = CommandManager()
+        commands.load_from_file('commands.json')
+
         # Start app with arguments from command line
         logger.debug(f'Initializing QApplication')
         app = QApplication(sys.argv)
 
         logger.debug(f'Initializing ProtocommWindow')
-        pcw = ProtocommWindow(config)
+        pcw = ProtocommWindow(config, commands)
 
         # Enter main loop
         logger.info(f'Entering main loop')
