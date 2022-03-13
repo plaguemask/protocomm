@@ -170,21 +170,24 @@ class ProtocommWindowConfig:
         # Get a list of variables in this class and their respective types
         var_types = self.__class__.__dict__['__annotations__']
         for v in var_types:
-            if var_types[v] != str:
-                try:
+
+            try:
+                logger.debug(f'Processing variable {v}...')
+                v_type = var_types[v]
+                conf_value = o[v]
+
+                if var_types[v] != str:
                     # Take the option in the config file with the variable's name and convert it to the variable's type
                     # e.g. for config x = 10: var_types[v] = int, o[v] = "10", ergo v_type(conf_value) -> int("10")
-                    logger.debug(f'Processing variable {v}...')
-                    v_type = var_types[v]
-                    conf_value = o[v]
                     logger.debug(f'Converting config value {conf_value} to {v_type}')
-                    converted_value = v_type(conf_value)
+                    conf_value = v_type(conf_value)
 
-                    # Then set the variable to that value
-                    logger.debug(f'Setting variable {v} to {converted_value}')
-                    setattr(self, v, converted_value)
-                except Exception as e:
-                    logger.exception(e)
+                # Then set the variable to that value
+                logger.debug(f'Setting variable {v} to {conf_value}')
+                setattr(self, v, conf_value)
+
+            except Exception as e:
+                logger.exception(e)
 
     def write_to_file(self, path: str) -> None:
         """
