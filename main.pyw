@@ -5,11 +5,11 @@ import sys
 from enum import Enum
 from typing import Dict
 import logging
+from dataclasses import dataclass
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QKeyEvent, QFocusEvent
 from PyQt6.QtWidgets import QMainWindow, QWidget, QLineEdit, QApplication
-
 
 # Enable logging
 LOG = "./protocomm.log"
@@ -18,63 +18,6 @@ logging.basicConfig(filename=LOG,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-
-def make_default_config(path: str) -> Dict:
-    """
-    Overwrite a file to contain default configurations.
-    :param path: Path to file
-    :return: Dict containing configurations
-    """
-    defaults = {
-        'Options': {
-            'x': 10,
-            'y': 10,
-            'width': 800,
-            'height': 64,
-            'padding': 5,
-            'text_size': 32,
-            'font': 'Courier New',
-            'foreground_color': 'white',
-            'background_color': 'black',
-            'opacity': 0.75,
-        }
-    }
-
-    # Write defaults to config file
-    logger.debug(f'Writing default configurations to {path}')
-
-    cfp = configparser.ConfigParser()
-    cfp.read_dict(defaults)
-    with open(path, 'w', encoding='utf-8') as f:
-        cfp.write(f)
-
-    return defaults
-
-
-def load_config(path: str) -> Dict:
-    """
-    Load user's configuration file. If none found, create a new one with default commands.
-    :param path: Path to file
-    :return: Dict containing configurations
-    """
-    cfp = configparser.ConfigParser()
-
-    # If config file doesn't exist, create one with defaults
-    if not os.path.exists(path):
-        logger.warning(f'Config file at "{path}" does not exist')
-        return make_default_config(path)
-
-    logger.info(f'Loading configurations from "{path}"')
-    cfp.read(path)
-
-    # If config file empty or formatted incorrectly, nuke it and replace with defaults
-    if 'Options' not in cfp:
-        logger.warning(f'Config file formatted incorrectly. It will be replaced with defaults.')
-        return make_default_config(path)
-
-    # Otherwise, return with configs present in file
-    return dict(cfp)
 
 
 def make_default_commands_file(path: str) -> Dict:
@@ -89,7 +32,7 @@ def make_default_commands_file(path: str) -> Dict:
     }
 
     # Write json fancily to file
-    logger.debug(f'Writing default commands to "{path}"')
+    logger.info(f'Writing default commands to "{path}"')
 
     with open(path, 'w', encoding='utf-8') as f:
         f.write('{')
@@ -181,30 +124,85 @@ def exit_app():
     QApplication.instance().quit()
 
 
+@dataclass
+class ProtocommWindowConfig:
+    x: int = 10
+    y: int = 10
+    width: int = 800
+    height: int = 64
+    padding: int = 5
+    text_size: int = 32
+    font: str = 'Courier New'
+    fg_color: str = '#FFFFFF'
+    bg_color: str = '#000000'
+    opacity: float = 0.75
+
+    def load_from_file(self, path: str) -> None:
+        """
+            Load user's configuration file. If none found, create a new one with default commands.
+            :param path: Path to file
+            :return: Dict containing configurations
+            """
+        cfp = configparser.ConfigParser()
+
+        # If config file doesn't exist, create one with defaults
+        if not os.path.exists(path):
+            logger.warning(f'Config file at "{path}" does not exist')
+            self.write_to_file(path)
+
+        logger.info(f'Loading configurations from "{path}"')
+        cfp.read(path)
+        o = cfp['Options']
+
+        # Get a list of variables in this class and their respective types
+        var_types = self.__class__.__dict__['__annotations__']
+        for v in var_types:
+            if var_types[v] != str:
+                try:
+                    # Take the option in the config file with the variable's name and convert it to the variable's type
+                    # e.g. for config x = 10: var_types[v] = int, o[v] = "10", ergo v_type(conf_value) -> int("10")
+                    logger.debug(f'Processing variable {v}...')
+                    v_type = var_types[v]
+                    conf_value = o[v]
+                    logger.debug(f'Converting config value {conf_value} to {v_type}')
+                    converted_value = v_type(conf_value)
+
+                    # Then set the variable to that value
+                    logger.debug(f'Setting variable {v} to {converted_value}')
+                    setattr(self, v, converted_value)
+                except Exception as e:
+                    logger.exception(e)
+
+    def write_to_file(self, path: str) -> None:
+
+        # Write defaults to config file
+        logger.info(f'Writing configurations to {path}')
+
+        cfp = configparser.ConfigParser()
+
+        config_dict = {'Options': vars(self)}
+        cfp.read_dict(config_dict)
+        with open(path, 'w', encoding='utf-8') as f:
+            cfp.write(f)
+
+
 class ProtocommWindow(QMainWindow):
-    def __init__(self, x: int, y: int, width: int, height: int, padding: int, text_size: int, font: str, fg_color: str, bg_color: str,
-                 opacity: float):
+    def __init__(self, config: ProtocommWindowConfig):
         super().__init__()
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
-        self.padding = padding
-        self.text_size = text_size
-        self.font = font
-        self.fg_color = fg_color
-        self.bg_color = bg_color
-        self.opacity = opacity
+        self.config = config
 
         logger.debug('Initializing UI')
         self.initUI()
 
     def initUI(self):
         self.timer = QTimer(self)
-        self.setGeometry(self.x, self.y, self.width + self.padding * 2, self.height + self.padding * 2)
-        self.setWindowOpacity(self.opacity)
+        self.setGeometry(self.config.x,
+                         self.config.y,
+                         self.config.width + self.config.padding * 2,
+                         self.config.height + self.config.padding * 2)
+        self.setWindowOpacity(self.config.opacity)
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint  # Hides window's title bar
             | Qt.WindowType.WindowStaysOnTopHint  # Force window to top
@@ -214,21 +212,28 @@ class ProtocommWindow(QMainWindow):
 
         logger.debug('Initializing QWidget')
         self.frame = QWidget(self)
-        self.frame.setGeometry(0, 0, self.width + self.padding * 2, self.height + self.padding * 2)
-        self.frame.setStyleSheet(f'background-color: {self.bg_color}; border-radius: {int(self.height * 0.3)}px;')
+        self.frame.setGeometry(0,
+                               0,
+                               self.config.width + self.config.padding * 2,
+                               self.config.height + self.config.padding * 2)
+        self.frame.setStyleSheet(
+            f'background-color: {self.config.bg_color}; border-radius: {int(self.config.height * 0.3)}px;')
 
         logger.debug('Initializing NoCursorQLineEdit')
         self.le = NoCursorQLineEdit(self.frame)
-        self.le.setGeometry(self.padding, self.padding, self.width, self.height)
+        self.le.setGeometry(self.config.padding,
+                            self.config.padding,
+                            self.config.width,
+                            self.config.height)
         self.le.setFrame(False)
         self.le.setReadOnly(True)
         self.le.setStyleSheet(f"""
             QLineEdit{{
-                background-color: {self.bg_color};
-                color: {self.fg_color};
-                font-family: {self.font};
-                font-size: {self.text_size}pt;
-                border-radius: {int(self.height * 0.2)}px;
+                background-color: {self.config.bg_color};
+                color: {self.config.fg_color};
+                font-family: {self.config.font};
+                font-size: {self.config.text_size}pt;
+                border-radius: {int(self.config.height * 0.2)}px;
             }}
         """)
 
@@ -245,12 +250,13 @@ class ProtocommWindow(QMainWindow):
         logger.debug(f'Flashing {color} for {duration}ms')
 
         current_style = self.frame.styleSheet()
-        self.frame.setStyleSheet(f'background-color: {color}; border-radius: {int(self.height * 0.3)}px;')
+        self.frame.setStyleSheet(f'background-color: {color}; border-radius: {int(self.config.height * 0.3)}px;')
 
         def timeout(obj, style):
             logger.debug('Duration has ended. Resetting style.')
             obj.frame.setStyleSheet(style)
             obj.timer.timeout.disconnect()
+
         self.timer.timeout.connect(lambda: timeout(self, current_style))
 
         logger.debug(f'Starting timer')
@@ -261,11 +267,11 @@ class ProtocommWindow(QMainWindow):
         self.le.setText('')
 
     def keyPressEvent(self, e: QKeyEvent) -> None:
-        key_event_labels = {
-            '\n': 'Return',
-            '': 'Escape'
+        key_event_desc = {
+            16777220: 'Return',
+            16777216: 'Escape'
         }
-        logger.info(f'Key event: {key_event_labels[e.text()]}')
+        logger.info(f'Key event: {key_event_desc[e.key()]}')
 
         if e.key() == Qt.Key.Key_Escape.value:
             logger.debug(f'Unfocusing self')
@@ -283,31 +289,20 @@ class ProtocommWindow(QMainWindow):
 
 
 def main() -> None:
-
     try:
         # Load config
-        config_dict = load_config('config.ini')
-        options = config_dict['Options']
+        logger.debug(f'Initializing ProtocommWindowConfig')
+        config = ProtocommWindowConfig()
+        config.load_from_file('config.ini')
 
         # Start app with arguments from command line
         logger.debug(f'Initializing QApplication')
         app = QApplication(sys.argv)
 
         logger.debug(f'Initializing ProtocommWindow')
-        pcw = ProtocommWindow(
-            x=int(options['x']),
-            y=int(options['y']),
-            width=int(options['width']),
-            height=int(options['height']),
-            padding=int(options['padding']),
-            text_size=int(options['text_size']),
-            font=options['font'],
-            fg_color=options['foreground_color'],
-            bg_color=options['background_color'],
-            opacity=float(options['opacity'])
-        )
+        pcw = ProtocommWindow(config)
 
-        # Enter main loop (and close program if application is ended)
+        # Enter main loop
         logger.info(f'Entering main loop')
         app.exec()
 
