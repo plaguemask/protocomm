@@ -1,9 +1,11 @@
-import configparser
-import json
 import os
+import re
 import sys
-from enum import Enum
+import json
 import logging
+import subprocess
+import configparser
+from enum import Enum
 from dataclasses import dataclass
 
 from PyQt6.QtCore import Qt, QTimer
@@ -14,15 +16,10 @@ from PyQt6.QtWidgets import QMainWindow, QWidget, QLineEdit, QApplication
 LOG_PATH = "./protocomm.log"
 logging.basicConfig(filename=LOG_PATH,
                     filemode="w",
+                    encoding='utf-8',
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-
-DEFAULT_COMMANDS = {
-    "commands": "commands.json",
-    "config": "config.ini"
-}
 
 
 class CommandStatus(Enum):
@@ -39,7 +36,10 @@ class CommandManager:
         if commands:
             self.commands = commands
         else:
-            self.commands = DEFAULT_COMMANDS
+            self.commands = {
+                "commands": "commands.json",
+                "config": "config.ini"
+            }
 
     def load_from_file(self, path: str) -> None:
         """
@@ -206,12 +206,12 @@ class ProtocommWindow(QMainWindow):
 
     """The main user interface of Protocomm"""
 
-    def __init__(self, config: ProtocommWindowConfig, commands: CommandManager):
+    def __init__(self, config: ProtocommWindowConfig, cm: CommandManager):
         super().__init__()
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         self.config = config
-        self.commands = commands
+        self.cm = cm
 
         self.initUI()
 
@@ -295,9 +295,9 @@ class ProtocommWindow(QMainWindow):
             self.clearFocus()
 
         if e.key() == Qt.Key.Key_Return.value:
-            result = self.commands.run_command(self.le.text())
+            result = self.cm.run_command(self.le.text())
             if result == CommandStatus.SUCCESS:
-                exit_app()
+                self.clearFocus()
             elif result == CommandStatus.INVALID:
                 self.clear()
                 self.flash('#FF0000', duration=200)
