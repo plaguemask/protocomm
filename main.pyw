@@ -11,8 +11,8 @@ from PyQt6.QtGui import QKeyEvent, QFocusEvent
 from PyQt6.QtWidgets import QMainWindow, QWidget, QLineEdit, QApplication
 
 # Enable logging
-LOG = "./protocomm.log"
-logging.basicConfig(filename=LOG,
+LOG_PATH = "./protocomm.log"
+logging.basicConfig(filename=LOG_PATH,
                     filemode="w",
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.DEBUG)
@@ -41,6 +41,43 @@ class CommandManager:
         else:
             self.commands = DEFAULT_COMMANDS
 
+    def load_from_file(self, path: str) -> None:
+        """
+        Load a commands file. If one does not exist at the path, create a new one with default commands.
+        :param path: Path to commands file.
+        :return: Dict of string command keys and string file path values.
+        """
+        if not os.path.exists(path):
+            logger.warning(f'Commands file at "{path}" does not exist')
+            self.write_to_file(path)
+
+        logger.info(f'Loading commands from "{path}"')
+        with open(path, encoding='utf-8') as f:
+            data = f.read().replace('\n', '')
+
+        commands_from_file = json.loads(data)
+        for c in commands_from_file:
+            self.commands[c] = commands_from_file[c]
+
+    def write_to_file(self, path: str) -> None:
+        """
+        Write commands to file, formatted with new-lines between entries.
+        :param path: Path to file
+        :return: None
+        """
+        logger.info(f'Writing commands to "{path}"')
+
+        # Write json fancily to file
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write('{')
+
+            commands_str = ''
+            for c in self.commands:
+                commands_str += f'\n\t"{c}": "{self.commands[c]}",'
+
+            f.write(commands_str[:-1])  # Avoid trailing comma
+            f.write('\n}')
+
     def run_command(self, command: str) -> CommandStatus:
         """
         Try to run a command.
@@ -67,45 +104,6 @@ class CommandManager:
                 logger.info(f'Command "{command}" not found')
                 return CommandStatus.INVALID
 
-    def load_from_file(self, path: str) -> None:
-        """
-        Load a commands file. If one does not exist at the path, create a new one with default commands.
-        :param path: Path to commands file.
-        :return: Dict of string command keys and string file path values.
-        """
-
-        if not os.path.exists(path):
-            logger.warning(f'Commands file at "{path}" does not exist')
-            self.write_to_file(path)
-
-        logger.info(f'Loading commands from "{path}"')
-        with open(path, encoding='utf-8') as f:
-            data = f.read().replace('\n', '')
-
-        commands_from_file = json.loads(data)
-        for c in commands_from_file:
-            self.commands[c] = commands_from_file[c]
-
-    def write_to_file(self, path: str) -> None:
-        """
-        Write commands to file.
-        :param path: Path to file
-        :return: None
-        """
-
-        # Write json fancily to file
-        logger.info(f'Writing commands to "{path}"')
-
-        with open(path, 'w', encoding='utf-8') as f:
-            f.write('{')
-
-            commands_str = ''
-            for c in self.commands:
-                commands_str += f'\n\t"{c}": "{self.commands[c]}",'
-
-            f.write(commands_str[:-1])  # Avoid trailing comma
-            f.write('\n}')
-
 
 class NoCursorQLineEdit(QLineEdit):
 
@@ -113,9 +111,12 @@ class NoCursorQLineEdit(QLineEdit):
 
     def __init__(self, parent: QWidget):
         super().__init__(parent=parent)
+
+        # Read-only mode is what hides the cursor
         self.setReadOnly(True)
 
     def keyPressEvent(self, e: QKeyEvent) -> None:
+        # Disable read-only mode to process key events, then re-enable afterwards
         self.setReadOnly(False)
 
         super().keyPressEvent(e)
@@ -124,14 +125,9 @@ class NoCursorQLineEdit(QLineEdit):
         self.setReadOnly(True)
 
     def focusOutEvent(self, e: QFocusEvent) -> None:
+        # Quit application on focus out
         logger.debug(f'{self.__class__.__name__}: FocusOut event')
         exit_app()
-
-
-def exit_app():
-    """Quits QApplication instance."""
-    logger.info('Closing app')
-    QApplication.instance().quit()
 
 
 @dataclass
@@ -308,6 +304,12 @@ class ProtocommWindow(QMainWindow):
             elif result == CommandStatus.MISSING_FILE:
                 self.clear()
                 self.flash('#FF8800', duration=200)
+
+
+def exit_app():
+    """Quits QApplication instance."""
+    logger.info('Closing app')
+    QApplication.instance().quit()
 
 
 def main() -> None:
