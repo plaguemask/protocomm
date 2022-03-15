@@ -91,14 +91,23 @@ class CommandManager:
         if command:
             if command in self.commands:
                 logger.info(f'Found command "{command}"')
-                command_path = self.commands[command]
+                operation = self.commands[command]
                 try:
-                    logger.info(f'Opening "{command_path}"')
-                    os.startfile(command_path)
+                    if type(operation) == list:
+                        # Replace special phrase {CLIPBOARD} with clipboard's contents
+                        clipboard_text = QApplication.clipboard().text()
+                        for i in range(len(operation)):
+                            operation[i] = re.sub('({CLIPBOARD})', clipboard_text, operation[i])
+
+                        logger.info(f'Running "{operation}"')
+                        subprocess.run(operation, shell=True)
+                    else:
+                        logger.info(f'Opening "{operation}"')
+                        os.startfile(operation)
                     return CommandStatus.SUCCESS
 
                 except FileNotFoundError:
-                    logger.error(f'File "{command_path}" not found')
+                    logger.error(f'File "{operation}" not found')
                     return CommandStatus.MISSING_FILE
             else:
                 logger.info(f'Command "{command}" not found')
