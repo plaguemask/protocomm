@@ -3,6 +3,7 @@ import re
 import sys
 import json
 import logging
+import argparse
 import subprocess
 import configparser
 from enum import Enum
@@ -12,13 +13,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QKeyEvent, QFocusEvent
 from PyQt6.QtWidgets import QMainWindow, QWidget, QLineEdit, QApplication
 
-# Enable logging
-LOG_PATH = "./protocomm.log"
-logging.basicConfig(filename=LOG_PATH,
-                    filemode="w",
-                    encoding='utf-8',
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.DEBUG)
+
 logger = logging.getLogger(__name__)
 
 
@@ -32,14 +27,8 @@ class CommandManager:
 
     """Class representation of available Protocomm commands."""
 
-    def __init__(self, commands: dict = None):
-        if commands:
-            self.commands = commands
-        else:
-            self.commands = {
-                "commands": "commands.json",
-                "config": "config.ini"
-            }
+    def __init__(self, commands: dict):
+        self.commands = commands
 
     def load_from_file(self, path: str) -> None:
         """
@@ -323,14 +312,50 @@ def exit_app():
 
 def main() -> None:
     try:
+        # Defaults for when no command line arguments are given
+        log_path = 'protocomm.log'
+        commands_path = 'commands.json'
+        config_path = 'config.ini'
+
+        # Parse command line arguments
+        if sys.argv[1:]:
+            logger.debug(f'Additional command line arguments given: {sys.argv[1:]}')
+            parser = argparse.ArgumentParser(
+                description='Protocomm: A simple command line that does exactly what you want it to.'
+            )
+            parser.add_argument('--configfile', type=str, help='Path to configuration file')
+            parser.add_argument('--commandsfile', type=str, help='Path to command list file')
+            parser.add_argument('--logfile', type=str, help='Path to log file')
+            args = parser.parse_args()
+
+            if args.configfile:
+                logger.debug(f'Setting config file to "{args.configfile}"')
+                config_path = args.configfile
+            if args.commandsfile:
+                logger.debug(f'Setting commands file to "{args.commandsfile}"')
+                commands_path = args.commandsfile
+            if args.logfile:
+                logger.debug(f'Setting log file to "{args.logfile}"')
+                log_path = args.logfile
+
+        # Configure logging
+        logging.basicConfig(filename=log_path,
+                            filemode="w",
+                            encoding='utf-8',
+                            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                            level=logging.DEBUG)
+
         # Load config
         logger.debug(f'Initializing ProtocommWindowConfig')
         config = ProtocommWindowConfig()
-        config.load_from_file('config.ini')
+        config.load_from_file(config_path)
 
         # Load commands
-        commands = CommandManager()
-        commands.load_from_file('commands.json')
+        commands = CommandManager({
+            "commands": commands_path,
+            "config": config_path
+        })
+        commands.load_from_file(commands_path)
 
         # Start app with arguments from command line
         logger.debug(f'Initializing QApplication')
