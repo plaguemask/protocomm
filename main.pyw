@@ -7,6 +7,7 @@ import argparse
 import subprocess
 import configparser
 from enum import Enum
+from pathlib import Path
 from dataclasses import dataclass
 
 from PyQt6.QtCore import Qt, QTimer
@@ -30,7 +31,7 @@ class CommandManager:
     def __init__(self, commands: dict):
         self.commands = commands
 
-    def load_from_file(self, path: str) -> None:
+    def load_from_file(self, path: Path) -> None:
         """
         Load a commands file. If one does not exist at the path, create a new one with default commands.
         :param path: Path to commands file.
@@ -48,7 +49,7 @@ class CommandManager:
         for c in commands_from_file:
             self.commands[c] = commands_from_file[c]
 
-    def write_to_file(self, path: str) -> None:
+    def write_to_file(self, path: Path) -> None:
         """
         Write commands to file, formatted with new-lines between entries.
         :param path: Path to file
@@ -62,7 +63,7 @@ class CommandManager:
 
             commands_str = ''
             for c in self.commands:
-                commands_str += f'\n\t"{c}": "{self.commands[c]}",'
+                commands_str += f'\n\t"{c}": "{self.commands[c].as_posix()}",'
 
             f.write(commands_str[:-1])  # Avoid trailing comma
             f.write('\n}')
@@ -144,7 +145,7 @@ class ProtocommWindowConfig:
     bg_color: str = '#000000'
     opacity: float = 0.75
 
-    def load_from_file(self, path: str) -> None:
+    def load_from_file(self, path: Path) -> None:
         """
         Load a configuration file. If one does not exist at the path, create a new one with default configurations.
         :param path: Path to file
@@ -183,7 +184,7 @@ class ProtocommWindowConfig:
             except Exception as e:
                 logger.exception(e)
 
-    def write_to_file(self, path: str) -> None:
+    def write_to_file(self, path: Path) -> None:
         """
         Write current configuration to file.
         :param path: Path to file
@@ -313,9 +314,9 @@ def exit_app():
 def main() -> None:
     try:
         # Defaults for when no command line arguments are given
-        log_path = 'protocomm.log'
-        commands_path = 'commands.json'
-        config_path = 'config.ini'
+        log_path = Path('protocomm.log')
+        commands_path = Path('commands.json')
+        config_path = Path('config.ini')
 
         # Parse command line arguments
         if sys.argv[1:]:
